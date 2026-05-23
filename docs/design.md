@@ -7,7 +7,8 @@
 - 鱼缸可通过本地 MQTT 直接控制
 - 官方 App 与本地控制可共存
 - 设备接受签发给 `emqx-endpoint.qun7.com` 的自签 TLS 证书
-- 现网 Home Assistant 中存在一批旧鱼缸实体，但当前已不可用
+
+本方案独立定义 `dangbei_tank` 的设备模型与实体模型，不继承也不映射 Home Assistant 中任何已有鱼缸内容。
 
 事实来源：
 
@@ -29,13 +30,13 @@
 - 定义一套可实现的运行时架构
 - 固定 V1 的网关 API、实体模型与诊断能力
 - 固定 Unraid 目标部署结构
-- 固定 Home Assistant 集成范围与迁移边界
+- 固定 Home Assistant 集成范围与运行边界
 
 ### 非目标
 
 - 本阶段不实现代码
 - 不处理 OpenWrt / DNS 配置细节
-- 不兼容旧 `hfjh_m100_5d72_*` entity_id
+- 不考虑 Home Assistant 中任何已有鱼缸实体、面板或自动化
 - 不承诺 V1 支持未验证的定时、喂食计划或灯效高级能力
 
 ## 3. 已验证协议事实
@@ -459,31 +460,7 @@ V1 固定暴露以下实体：
 3. 验证 gateway 能看到设备并成功拉取 `getAllProperties`
 4. 在 Home Assistant 通过 HACS 安装 `dangbei_tank`
 5. 创建新的 config entry
-6. 替换 Lovelace 和自动化中的旧实体引用
-7. 下线旧鱼缸入口
-
-### 9.1 旧实体迁移表
-
-旧实体 ID 不保留。迁移按能力而非按 entity_id 兼容。
-
-| 旧实体 | 新能力 key | 说明 |
-| --- | --- | --- |
-| `sensor.hfjh_m100_5d72_temperature` | `water_temperature` | 直接替换 |
-| `light.hfjh_m100_5d72_light` | `light` | 改为开关语义或保留 light 平台为后续决定；V1 先按 `switch.light` 设计 |
-| `switch.hfjh_m100_5d72_water_pump` | `water_pump_mode` | 旧开关改为档位选择 |
-| `switch.hfjh_m100_5d72_feed_protect_on` | `feeding_protection` | 直接替换 |
-| `select.hfjh_m100_5d72_pump_flux` | `water_pump_mode` | 直接替换 |
-| `switch.hfjh_m100_5d72_light_status_on` | `light` | 合并到单一灯开关 |
-| `switch.hfjh_m100_5d72_pump_status_on` | 不提供 | V1 不拆分独立泵开关 |
-| `sensor.hfjh_m100_5d72_filter_*` | 不提供 | V1 不纳入 |
-| `switch.hfjh_m100_5d72_physical_control_locked` | 不提供 | V1 不纳入 |
-| `switch.hfjh_m100_5d72_alarm` | 不提供 | V1 不纳入 |
-| `switch.hfjh_m100_5d72_no_disturb` | 不提供 | V1 不纳入 |
-| `select.hfjh_m100_5d72_light_status_mode` | 不提供 | V1 不纳入 |
-
-### 9.2 现有 HA 侧特殊项
-
-现有 `input_select.ke_ting_yu_gang_deng_xiao` 仍存在，但 V1 不接入该灯效选择能力，保留为后续扩展项。
+6. 在新的 `dangbei_tank` 设备模型下开始使用实体和服务
 
 ## 10. 诊断、可观测性与故障处理
 
@@ -536,7 +513,6 @@ gateway 必须保留：
 - 滤芯寿命
 - TDS 相关高级配置
 - 喂食计划与附件计划
-- 旧实体迁移辅助脚本
 
 ## 12. 验收标准
 
@@ -546,7 +522,7 @@ gateway 必须保留：
 - 所有关键接口和实体边界已固定
 - 已明确哪些能力进入 V1，哪些不进入
 - 已明确 Unraid 部署目标目录与服务划分
-- 已明确旧实体不兼容，只提供迁移表
+- 已明确该方案与 Home Assistant 中任何既有鱼缸内容无关
 
 实现阶段的最小验收标准预留如下：
 
