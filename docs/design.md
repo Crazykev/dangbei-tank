@@ -1,0 +1,565 @@
+# Dangbei Tank 本地集成设计
+
+## 1. 背景与现状
+
+现有逆向与桥接资产位于 `/root/iot-lab/fish-tank`。其中已经验证了以下事实：
+
+- 鱼缸可通过本地 MQTT 直接控制
+- 官方 App 与本地控制可共存
+- 设备接受签发给 `emqx-endpoint.qun7.com` 的自签 TLS 证书
+- 现网 Home Assistant 中存在一批旧鱼缸实体，但当前已不可用
+
+事实来源：
+
+- [fish-tank-local-mqtt.md](/root/iot-lab/fish-tank/docs/experimental/fish-tank-local-mqtt.md)
+- [fish-tank-hass-app-coexistence.md](/root/iot-lab/fish-tank/docs/experimental/fish-tank-hass-app-coexistence.md)
+- [cloud-bridge-live.jsonl](/root/iot-lab/fish-tank/logs/cloud-bridge-live.jsonl)
+- [mosquitto.conf](/root/iot-lab/fish-tank/.iot-local-mqtt/mosquitto.conf)
+
+本仓库的目标是把现有实验方案整理为可发布、可部署、可维护的正式方案：
+
+- Unraid 上运行 broker 和 gateway
+- HACS 集成作为 Home Assistant 入口
+- 未解协议继续通过 raw passthrough 观察
+
+## 2. 目标与非目标
+
+### 目标
+
+- 定义一套可实现的运行时架构
+- 固定 V1 的网关 API、实体模型与诊断能力
+- 固定 Unraid 目标部署结构
+- 固定 Home Assistant 集成范围与迁移边界
+
+### 非目标
+
+- 本阶段不实现代码
+- 不处理 OpenWrt / DNS 配置细节
+- 不兼容旧 `hfjh_m100_5d72_*` entity_id
+- 不承诺 V1 支持未验证的定时、喂食计划或灯效高级能力
+
+## 3. 已验证协议事实
+
+### 3.1 设备身份
+
+- Device label: `DANGBEI-FISH-TANK`
+- MAC: `fc:01:2c:d1:9a:a8`
+- IP: `192.168.199.236`
+- Client ID / Username: `YUFC012CD19AA8518347`
+- Password: `YU010387`
+- MQTT version: `5`
+- Keepalive: `60`
+- Group: `YU01`
+
+### 3.2 Topic 模型
+
+设备订阅：
+
+- `cmd/device/down/YUFC012CD19AA8518347`
+- `config/device/down/YUFC012CD19AA8518347`
+- `cmd/broadcast/down/group/YU01`
+- `config/broadcast/down/group/YU01`
+
+设备发布：
+
+- `message/device/up/info/YUFC012CD19AA8518347`
+- `message/device/up/event/YUFC012CD19AA8518347`
+- `message/device/up/reply/YUFC012CD19AA8518347`
+
+### 3.3 已确认命令
+
+- `getAllProperties`
+- `setProperty`
+
+下行封包固定为：
+
+```json
+{
+  "content": {
+    "action": "{\"serviceName\":\"setProperty\",\"items\":{\"lightSwitch\":1}}"
+  },
+  "msgId": "414005920760760517",
+  "type": "cmd"
+}
+```
+
+上行 reply 固定为：
+
+```json
+{
+  "clientId": "YUFC012CD19AA8518347",
+  "type": "cmd",
+  "content": {
+    "action": "{\"serviceName\":\"setProperty\",\"items\":{\"lightSwitch\":1}}"
+  },
+  "msgId": "414005920760760517",
+  "success": "true",
+  "resultMsg": ""
+}
+```
+
+### 3.4 已确认可读字段
+
+已在 `getAllProperties` 中观测到：
+
+- `lightSwitch`
+- `lightMode`
+- `lightBrightness`
+- `lightSpeed`
+- `customLightColor`
+- `waterPumpSwitch`
+- `waterPump`
+- `waterLevelStatus`
+- `temperature`
+- `minTemperature`
+- `maxTemperature`
+- `tdsSensorValue`
+- `minTdsSensorValue`
+- `maxTdsSensorValue`
+- `childLockSwitch`
+- `buzzerSwitch`
+- `customLightBrightness`
+- `indLightDisplaySwitch`
+- `feedingProtectionSwitch`
+- `filtrationStatus`
+- `waterPumpStatus`
+- `reconnectDuration`
+- `cultivationStatus`
+- `tdsCoefficient`
+- `temperatureSensorStatus`
+- `peripheralNum`
+- `peripheralPowerSwitch_1`
+- `peripheralPowerSwitch_2`
+- `powerSupplyMode`
+- `tdsAlertSwitch`
+- `feedPauseTime`
+- `indLightDisplayMode`
+
+### 3.5 已确认可写字段
+
+V1 只以已实测成功的 `setProperty` 写入为依据：
+
+- `lightSwitch`
+- `waterPump`
+- `feedingProtectionSwitch`
+- `feedPauseTime`
+- `peripheralPowerSwitch_1`
+- `peripheralPowerSwitch_2`
+
+### 3.6 已确认事件
+
+设备会直接上报局部事件：
+
+- `{"childLockSwitch":1|0}`
+- `{"powerSwitch":1|0}`
+- `{"waterPump":1|2|3}`
+- `{"lightSwitch":1|0}`
+- `{"lightMode":0..9}`
+
+特殊事件：
+
+- `eventType=1`, `content={"event":4,"eventValue":"1"}`：高度相关于手动喂食
+- `eventType=1`, `content={"event":6,"eventValue":"0"}`：含义未确认
+
+## 4. 目标架构
+
+目标运行时拓扑如下：
+
+```txt
+Fish Tank
+  -> MQTT/TLS to emqx-endpoint.qun7.com:8883
+  -> 实际由外部 DNS 映射到 Unraid
+
+Unraid
+  -> mosquitto broker :8883
+  -> fish-tank-gateway :8787
+  -> fish-tank-gateway outbound MQTT to vendor cloud :8883
+
+Home Assistant
+  -> HACS integration dangbei_tank
+  -> HTTP/WebSocket to fish-tank-gateway
+
+Official App
+  -> vendor cloud
+  -> 由 gateway 透传云端下行到本地设备
+```
+
+设计原则：
+
+- broker 和 gateway 不运行在 Home Assistant 内
+- Home Assistant 不直接持有设备 MQTT 会话
+- vendor cloud 未知操作必须透传，不能因 HA 未建模而阻断
+- 状态目标是收敛，不是多主冲突仲裁
+
+## 5. 组件职责划分
+
+### 5.1 Broker
+
+职责：
+
+- 作为鱼缸的本地 MQTT TLS 入口
+- 接收设备上行并向设备发送下行
+- 不承担协议解析和状态管理
+
+约束：
+
+- 监听 `0.0.0.0:8883`
+- 使用签发给 `emqx-endpoint.qun7.com` 的证书
+- 初始配置沿用现有最小配置：匿名接入、TLS、stdout 日志
+
+### 5.2 Gateway
+
+职责：
+
+- 本地 broker 与 vendor cloud MQTT 间的双向桥
+- 已知 reply/event/snapshot 的状态归一化
+- Home Assistant 命令到 vendor MQTT envelope 的转换
+- 提供 HTTP 与 WebSocket API
+- 保存最近 raw payload 供诊断与继续逆向
+
+### 5.3 Home Assistant 集成
+
+职责：
+
+- config flow / reconfigure
+- 创建实体和服务
+- 消费 gateway snapshot 和状态推送
+- 暴露 diagnostics
+
+不承担：
+
+- MQTT 连接
+- 云端透传
+- 协议主解析
+
+## 6. 网关接口设计
+
+### 6.1 HTTP API
+
+- `GET /api/v1/devices`
+  - 返回当前网关可见的设备列表
+- `GET /api/v1/devices/{client_id}/state`
+  - 返回设备当前 `TankState`
+- `POST /api/v1/devices/{client_id}/commands`
+  - 发送标准命令或 raw 命令
+- `GET /api/v1/devices/{client_id}/diagnostics`
+  - 返回最近 raw payload 与连通性信息
+
+### 6.2 WebSocket API
+
+- `GET /api/v1/ws`
+
+事件类型固定为：
+
+- `snapshot`
+- `state_changed`
+- `connectivity_changed`
+
+### 6.3 命令请求体
+
+```json
+{
+  "service_name": "setProperty",
+  "items": {
+    "lightSwitch": 1
+  },
+  "topic": null,
+  "payload": null,
+  "request_id": "optional-client-request-id"
+}
+```
+
+约束：
+
+- 标准集成只使用 `getAllProperties` 和 `setProperty`
+- `topic` + `payload` 仅供 raw diagnostics 服务使用
+
+### 6.4 状态模型
+
+`TankState` 固定为：
+
+- `identity`
+  - `client_id`
+  - `mac`
+  - `group`
+  - `sn`
+  - `rom_ver_code`
+- `connectivity`
+  - `broker_connected`
+  - `cloud_connected`
+  - `device_connected`
+  - `last_upstream_ts`
+  - `last_snapshot_ts`
+- `properties`
+  - 当前已知属性集合
+- `pending`
+  - 待确认命令
+- `dirty`
+  - `needs_refresh`
+  - `reason`
+- `raw`
+  - `last_cloud_downlink`
+  - `last_local_reply`
+  - `last_local_event`
+  - `last_snapshot`
+
+### 6.5 刷新策略
+
+`getAllProperties` 触发条件固定为：
+
+- gateway 启动后
+- 设备 reconnect 后
+- cloud reconnect 后
+- unknown cloud downlink 后
+- HA 写入成功后
+- 等待设备 reply 超时后
+- 周期性安全轮询，默认 `90s`
+
+规则：
+
+- `getAllProperties` 是唯一完整快照来源
+- 上行 event 只做点更新
+- 空 `resultMsg` reply 只视为 ACK
+- unknown cloud downlink 必须先透传，再标记 dirty，再刷新
+
+## 7. Home Assistant 集成设计
+
+### 7.1 Domain 与配置模型
+
+- domain: `dangbei_tank`
+- 一个 config entry 对应一台鱼缸
+- entry 配置项：
+  - `gateway_base_url`
+  - `api_token`
+  - `client_id`
+  - `display_name`
+  - `area_id`
+
+### 7.2 Config Flow
+
+固定为两步：
+
+1. 输入 `gateway_base_url` 与 `api_token`
+2. 从 gateway 设备列表中选择鱼缸，并填写显示名与区域
+
+同时提供 `reconfigure` 流，用于修改：
+
+- `gateway_base_url`
+- `api_token`
+- `display_name`
+- `area_id`
+
+### 7.3 V1 实体
+
+V1 固定暴露以下实体：
+
+- `sensor`
+  - `water_temperature`
+  - `tds`
+- `binary_sensor`
+  - `water_level_ok`
+  - `temperature_probe_ok`
+  - `cloud_connected`
+  - `device_connected`
+- `switch`
+  - `light`
+  - `feeding_protection`
+  - `accessory_1`
+  - `accessory_2`
+- `select`
+  - `water_pump_mode`
+- `number`
+  - `feed_pause_time`
+
+命名规则：
+
+- `unique_id` 以 `client_id + key` 组成
+- object ID 以 `<device_slug>_<key>` 组成
+- 文档中的 key 即实现期 `entity_description.key`
+
+### 7.4 V1 不纳入的能力
+
+以下能力即使已观察到字段，也不进入 V1：
+
+- 总电源 `powerSwitch`
+- 灯效/流光高级模式
+- child lock
+- buzzer
+- 滤芯状态与寿命
+- TDS 报警与系数配置
+- 定时喂食
+- 附件定时规则
+
+原因：
+
+- 写路径或业务语义仍不稳定
+- 需要先通过 diagnostics 继续验证
+
+### 7.5 集成服务
+
+固定暴露：
+
+- `dangbei_tank.refresh_state`
+- `dangbei_tank.send_raw_command`
+- `dangbei_tank.dump_last_raw_payloads`
+
+## 8. Unraid 部署设计
+
+### 8.1 目标目录
+
+- Compose Manager 项目目录：`/boot/config/plugins/compose.manager/projects/dangbei-tank`
+- 持久化目录：`/mnt/user/appdata/dangbei-tank`
+
+### 8.2 目标服务
+
+同一栈包含两个服务：
+
+- `broker`
+  - 基于 `eclipse-mosquitto:2`
+  - 对外暴露 `8883`
+- `gateway`
+  - 基于本仓库后续构建的镜像
+  - 对外暴露 `8787`
+
+### 8.3 持久化布局
+
+建议目录：
+
+- `/mnt/user/appdata/dangbei-tank/mosquitto/config/`
+- `/mnt/user/appdata/dangbei-tank/mosquitto/certs/`
+- `/mnt/user/appdata/dangbei-tank/mosquitto/data/`
+- `/mnt/user/appdata/dangbei-tank/gateway/config/`
+- `/mnt/user/appdata/dangbei-tank/gateway/logs/`
+
+### 8.4 证书材料
+
+现有证书可直接迁移，当前观测值：
+
+- Subject: `CN=emqx-endpoint.qun7.com`
+- SAN:
+  - `emqx-endpoint.qun7.com`
+  - `*.qun7.com`
+  - `qun7.com`
+
+现有证书文件来源：
+
+- `/root/iot-lab/fish-tank/.iot-local-mqtt/certs/server.crt`
+- `/root/iot-lab/fish-tank/.iot-local-mqtt/certs/server.key`
+
+## 9. 迁移与切换方案
+
+前置条件：
+
+- 外部 DNS 已由你手工配置到 Unraid 地址
+
+切换步骤固定为：
+
+1. 在 Unraid 部署 broker 与 gateway
+2. 验证鱼缸连入 Unraid broker
+3. 验证 gateway 能看到设备并成功拉取 `getAllProperties`
+4. 在 Home Assistant 通过 HACS 安装 `dangbei_tank`
+5. 创建新的 config entry
+6. 替换 Lovelace 和自动化中的旧实体引用
+7. 下线旧鱼缸入口
+
+### 9.1 旧实体迁移表
+
+旧实体 ID 不保留。迁移按能力而非按 entity_id 兼容。
+
+| 旧实体 | 新能力 key | 说明 |
+| --- | --- | --- |
+| `sensor.hfjh_m100_5d72_temperature` | `water_temperature` | 直接替换 |
+| `light.hfjh_m100_5d72_light` | `light` | 改为开关语义或保留 light 平台为后续决定；V1 先按 `switch.light` 设计 |
+| `switch.hfjh_m100_5d72_water_pump` | `water_pump_mode` | 旧开关改为档位选择 |
+| `switch.hfjh_m100_5d72_feed_protect_on` | `feeding_protection` | 直接替换 |
+| `select.hfjh_m100_5d72_pump_flux` | `water_pump_mode` | 直接替换 |
+| `switch.hfjh_m100_5d72_light_status_on` | `light` | 合并到单一灯开关 |
+| `switch.hfjh_m100_5d72_pump_status_on` | 不提供 | V1 不拆分独立泵开关 |
+| `sensor.hfjh_m100_5d72_filter_*` | 不提供 | V1 不纳入 |
+| `switch.hfjh_m100_5d72_physical_control_locked` | 不提供 | V1 不纳入 |
+| `switch.hfjh_m100_5d72_alarm` | 不提供 | V1 不纳入 |
+| `switch.hfjh_m100_5d72_no_disturb` | 不提供 | V1 不纳入 |
+| `select.hfjh_m100_5d72_light_status_mode` | 不提供 | V1 不纳入 |
+
+### 9.2 现有 HA 侧特殊项
+
+现有 `input_select.ke_ting_yu_gang_deng_xiao` 仍存在，但 V1 不接入该灯效选择能力，保留为后续扩展项。
+
+## 10. 诊断、可观测性与故障处理
+
+### 10.1 诊断能力
+
+gateway 必须保留：
+
+- 最近一次 cloud downlink
+- 最近一次 local reply
+- 最近一次 local event
+- 最近一次 snapshot
+- 当前连通性状态
+- 最近 refresh 原因
+
+集成必须通过 `diagnostics.py` 提供脱敏后的诊断输出，至少脱敏：
+
+- API token
+- MQTT password
+- 任何可能复用的云端凭据
+
+### 10.2 预期故障行为
+
+- HA 重启：
+  - gateway 与 App 不应受影响
+  - HA 实体重新订阅后恢复
+- vendor cloud 不可达：
+  - 本地已知命令仍可工作
+  - 官方 App 不可用
+- gateway 不可达：
+  - HA 实体转为 unavailable
+  - App 共存路径失效
+- broker 不可达：
+  - 鱼缸断开本地入口
+  - HA 与 App 共存同时失败
+
+## 11. V1 范围与后续扩展
+
+### 11.1 V1 范围
+
+- broker + gateway + HACS 集成的完整闭环
+- 已知字段的稳定读写
+- raw diagnostics
+- 官方 App 共存
+
+### 11.2 后续扩展
+
+- 灯效模式与亮度
+- 总电源控制
+- child lock / buzzer / no disturb
+- 滤芯寿命
+- TDS 相关高级配置
+- 喂食计划与附件计划
+- 旧实体迁移辅助脚本
+
+## 12. 验收标准
+
+设计验收通过的标准：
+
+- 文档足以直接指导实现
+- 所有关键接口和实体边界已固定
+- 已明确哪些能力进入 V1，哪些不进入
+- 已明确 Unraid 部署目标目录与服务划分
+- 已明确旧实体不兼容，只提供迁移表
+
+实现阶段的最小验收标准预留如下：
+
+- 鱼缸接入 Unraid broker
+- gateway 可拉取并维护稳定状态
+- HACS 集成成功创建 config entry
+- V1 实体全部可读写
+- 官方 App 与 HA 可并存控制
+
+## 13. 待确认 / 暂不处理项
+
+- `powerSwitch` 是否适合进入后续版本
+- `lightMode` / `lightBrightness` / `lightSpeed` 的完整写路径设计
+- `event=6` 的实际含义
+- 定时喂食与附件定时是否走 MQTT 之外的云端 HTTP 路径
+- 是否在后续版本把 `light` 从 `switch` 升级为 `light` 平台
