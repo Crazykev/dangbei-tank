@@ -11,12 +11,7 @@ from .entity import DangbeiTankEntity
 
 async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback) -> None:
     coordinator = entry.runtime_data.coordinator
-    async_add_entities(
-        [
-            DangbeiFeedPauseTimeNumber(coordinator, entry),
-            DangbeiCustomLightBrightnessNumber(coordinator, entry),
-        ]
-    )
+    async_add_entities([DangbeiFeedPauseTimeNumber(coordinator, entry)])
 
 
 class DangbeiFeedPauseTimeNumber(DangbeiTankEntity, NumberEntity):
@@ -42,30 +37,6 @@ class DangbeiFeedPauseTimeNumber(DangbeiTankEntity, NumberEntity):
                     "feedingProtectionSwitch": 1,
                     "feedPauseTime": int(round(value)),
                 },
-            },
-        )
-        await self.coordinator.async_request_refresh()
-
-
-class DangbeiCustomLightBrightnessNumber(DangbeiTankEntity, NumberEntity):
-    _attr_native_min_value = 0
-    _attr_native_max_value = 100
-    _attr_native_step = 1
-    _attr_mode = "slider"
-
-    def __init__(self, coordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "custom_light_brightness", "Custom Light Brightness")
-
-    @property
-    def native_value(self):
-        return self._properties().get("customLightBrightness")
-
-    async def async_set_native_value(self, value: float) -> None:
-        await self.coordinator.api.async_send_command(
-            self._client_id,
-            {
-                "service_name": "setProperty",
-                "items": {"customLightBrightness": int(round(value))},
             },
         )
         await self.coordinator.async_request_refresh()

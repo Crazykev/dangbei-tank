@@ -37,7 +37,7 @@
 - 本阶段不实现代码
 - 不处理 OpenWrt / DNS 配置细节
 - 不考虑 Home Assistant 中任何已有鱼缸实体、面板或自动化
-- 不承诺 V1 支持未验证的定时喂食计划、附件计划或灯效高级能力
+- 不承诺 V1 支持未验证的定时喂食计划、附件计划或高级灯效参数
 
 ## 3. 已验证协议事实
 
@@ -179,7 +179,7 @@ V1 中可直接落地的写路径分两类：
 - `{"powerSwitch":1|0}`
 - `{"waterPump":1|2|3}`
 - `{"lightSwitch":1|0}`
-- `{"lightMode":0..9}`
+- `{"lightMode":0..8}`
 
 特殊事件：
 
@@ -388,17 +388,17 @@ V1 固定暴露以下实体：
   - `device_connected`
 - `switch`
   - `power`
-  - `light`
   - `feeding_protection`
   - `accessory_1`
   - `accessory_2`
 - `light`
-  - `aquarium_light`
+  - `light`
+    - 原生灯实体
+    - 包含开关、亮度、9 个预设灯效
 - `select`
   - `water_pump_mode`
 - `number`
   - `feed_pause_time`
-  - `custom_light_brightness`
 - `button`
   - `feed_now`
 
@@ -520,7 +520,8 @@ gateway 必须保留：
 
 ### 10.2 后续扩展
 
-- 灯效模式与亮度
+- 自定义灯效颜色能力
+- 灯效速度独立控制
 - child lock / buzzer / no disturb
 - 滤芯寿命
 - TDS 相关高级配置
@@ -549,4 +550,3 @@ gateway 必须保留：
 - `customLightColor` 的语义化映射与 HA 颜色模型适配
 - `event=6` 的实际含义
 - 定时喂食计划与附件定时是否走 MQTT 之外的云端 HTTP 路径
-- 是否在后续版本把原 `switch.light` 收敛为单一 `light` 实体

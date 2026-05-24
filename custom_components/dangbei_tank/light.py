@@ -54,7 +54,7 @@ class DangbeiAquariumLight(DangbeiTankEntity, LightEntity):
     _attr_icon = "mdi:lightbulb-group"
 
     def __init__(self, coordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "aquarium_light", "Aquarium Light")
+        super().__init__(coordinator, entry, "light", "Light")
 
     @property
     def is_on(self) -> bool:
@@ -66,7 +66,9 @@ class DangbeiAquariumLight(DangbeiTankEntity, LightEntity):
 
     @property
     def brightness(self) -> int | None:
-        return _percent_to_brightness(self._properties().get("lightBrightness"))
+        mode = self._properties().get("lightMode")
+        brightness_key = "customLightBrightness" if mode == 0 else "lightBrightness"
+        return _percent_to_brightness(self._properties().get(brightness_key))
 
     @property
     def effect(self) -> str | None:
@@ -90,14 +92,17 @@ class DangbeiAquariumLight(DangbeiTankEntity, LightEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         items: dict[str, Any] = {"lightSwitch": 1}
-
-        if (brightness := kwargs.get(ATTR_BRIGHTNESS)) is not None:
-            items["lightBrightness"] = _brightness_to_percent(brightness)
+        target_mode = self._properties().get("lightMode")
 
         if (effect := kwargs.get(ATTR_EFFECT)) is not None:
             if effect not in LIGHT_EFFECT_TO_MODE:
                 raise ValueError(f"Unsupported light effect: {effect}")
-            items["lightMode"] = LIGHT_EFFECT_TO_MODE[effect]
+            target_mode = LIGHT_EFFECT_TO_MODE[effect]
+            items["lightMode"] = target_mode
+
+        if (brightness := kwargs.get(ATTR_BRIGHTNESS)) is not None:
+            brightness_key = "customLightBrightness" if target_mode == 0 else "lightBrightness"
+            items[brightness_key] = _brightness_to_percent(brightness)
 
         await self.coordinator.api.async_send_command(
             self._client_id,

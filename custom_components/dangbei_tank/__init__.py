@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import entity_registry as er
 
 from .api import GatewayApiClient, GatewayApiError
 from .const import (
@@ -53,6 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = DangbeiTankRuntimeData(api=api, coordinator=coordinator)
     hass.data[DOMAIN][entry.entry_id] = entry.runtime_data
 
+    await _async_cleanup_obsolete_entities(hass, entry)
     await _async_register_services(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -136,3 +138,16 @@ def _target_entries(hass: HomeAssistant, call: ServiceCall) -> list[ConfigEntry]
         return [entry]
 
     return [entry for entry in hass.config_entries.async_entries(DOMAIN)]
+
+
+async def _async_cleanup_obsolete_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    entity_registry = er.async_get(hass)
+    client_id = str(entry.data[CONF_CLIENT_ID])
+    obsolete_unique_ids = {
+        f"{client_id}_aquarium_light",
+        f"{client_id}_custom_light_brightness",
+        f"{client_id}_light",
+    }
+    for registry_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        if registry_entry.unique_id in obsolete_unique_ids:
+            entity_registry.async_remove(registry_entry.entity_id)

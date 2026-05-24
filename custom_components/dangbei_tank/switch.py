@@ -14,7 +14,6 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities: AddCon
     async_add_entities(
         [
             DangbeiPropertySwitch(coordinator, entry, "power", "Power", "powerSwitch"),
-            DangbeiPropertySwitch(coordinator, entry, "light", "Light", "lightSwitch"),
             DangbeiPropertySwitch(coordinator, entry, "feeding_protection", "Feeding Protection", "feedingProtectionSwitch"),
             DangbeiPropertySwitch(coordinator, entry, "accessory_1", "Accessory 1", "peripheralPowerSwitch_1"),
             DangbeiPropertySwitch(coordinator, entry, "accessory_2", "Accessory 2", "peripheralPowerSwitch_2"),
