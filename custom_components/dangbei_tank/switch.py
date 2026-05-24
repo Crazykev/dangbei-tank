@@ -14,6 +14,14 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities: AddCon
     async_add_entities(
         [
             DangbeiPropertySwitch(coordinator, entry, "power", "Power", "powerSwitch"),
+            DangbeiPropertySwitch(
+                coordinator,
+                entry,
+                "water_pump",
+                "Water Pump",
+                "waterPumpSwitch",
+                icon="mdi:pump",
+            ),
             DangbeiPropertySwitch(coordinator, entry, "feeding_protection", "Feeding Protection", "feedingProtectionSwitch"),
             DangbeiPropertySwitch(coordinator, entry, "accessory_1", "Accessory 1", "peripheralPowerSwitch_1"),
             DangbeiPropertySwitch(coordinator, entry, "accessory_2", "Accessory 2", "peripheralPowerSwitch_2"),
@@ -22,9 +30,20 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities: AddCon
 
 
 class DangbeiPropertySwitch(DangbeiTankEntity, SwitchEntity):
-    def __init__(self, coordinator, entry: ConfigEntry, key: str, name: str, property_key: str) -> None:
+    def __init__(
+        self,
+        coordinator,
+        entry: ConfigEntry,
+        key: str,
+        name: str,
+        property_key: str,
+        *,
+        icon: str | None = None,
+    ) -> None:
         super().__init__(coordinator, entry, key, name)
         self._property_key = property_key
+        if icon is not None:
+            self._attr_icon = icon
 
     @property
     def is_on(self):

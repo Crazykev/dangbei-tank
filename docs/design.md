@@ -398,6 +398,7 @@ V1 固定暴露以下实体：
   - `device_connected`
 - `switch`
   - `power`
+  - `water_pump`
   - `feeding_protection`
   - `accessory_1`
   - `accessory_2`
