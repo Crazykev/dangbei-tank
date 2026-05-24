@@ -145,6 +145,10 @@ V1 中可直接落地的写路径分两类：
 
 - `powerSwitch`
 - `lightSwitch`
+- `lightMode`
+- `lightBrightness`
+- `lightSpeed`
+- `customLightBrightness`
 - `waterPump`
 - `feedingProtectionSwitch`
 - `feedPauseTime`
@@ -376,10 +380,13 @@ V1 固定暴露以下实体：
   - `feeding_protection`
   - `accessory_1`
   - `accessory_2`
+- `light`
+  - `aquarium_light`
 - `select`
   - `water_pump_mode`
 - `number`
   - `feed_pause_time`
+  - `custom_light_brightness`
 - `button`
   - `feed_now`
 
@@ -391,9 +398,8 @@ V1 固定暴露以下实体：
 
 ### 7.4 V1 不纳入的能力
 
-以下能力即使已观察到字段，也不进入 V1：
+以下能力即使已观察到字段，也不进入当前 V1：
 
-- 灯效/流光高级模式
 - child lock
 - buzzer
 - 滤芯状态与寿命
@@ -528,7 +534,7 @@ gateway 必须保留：
 
 ## 13. 待确认 / 暂不处理项
 
-- `lightMode` / `lightBrightness` / `lightSpeed` 的完整写路径设计
+- `customLightColor` 的语义化映射与 HA 颜色模型适配
 - `event=6` 的实际含义
 - 定时喂食计划与附件定时是否走 MQTT 之外的云端 HTTP 路径
-- 是否在后续版本把 `light` 从 `switch` 升级为 `light` 平台
+- 是否在后续版本把原 `switch.light` 收敛为单一 `light` 实体
