@@ -37,7 +37,7 @@
 - 本阶段不实现代码
 - 不处理 OpenWrt / DNS 配置细节
 - 不考虑 Home Assistant 中任何已有鱼缸实体、面板或自动化
-- 不承诺 V1 支持未验证的定时、喂食计划或灯效高级能力
+- 不承诺 V1 支持未验证的定时喂食计划、附件计划或灯效高级能力
 
 ## 3. 已验证协议事实
 
@@ -71,6 +71,7 @@
 
 - `getAllProperties`
 - `setProperty`
+- `feed`
 
 下行封包固定为：
 
@@ -138,7 +139,9 @@
 
 ### 3.5 已确认可写字段
 
-V1 只以已实测成功的 `setProperty` 写入为依据：
+V1 中可直接落地的写路径分两类：
+
+已实测成功的 `setProperty` 写入字段：
 
 - `powerSwitch`
 - `lightSwitch`
@@ -147,6 +150,10 @@ V1 只以已实测成功的 `setProperty` 写入为依据：
 - `feedPauseTime`
 - `peripheralPowerSwitch_1`
 - `peripheralPowerSwitch_2`
+
+已确认的独立动作命令：
+
+- `feed`，负载为 `{"serviceName":"feed","items":{"num":1}}`
 
 ### 3.6 已确认事件
 
@@ -160,7 +167,7 @@ V1 只以已实测成功的 `setProperty` 写入为依据：
 
 特殊事件：
 
-- `eventType=1`, `content={"event":4,"eventValue":"1"}`：高度相关于手动喂食
+- `eventType=1`, `content={"event":4,"eventValue":"1"}`：已确认对应喂食动作；云端定时喂食下行也复用 `serviceName=feed`
 - `eventType=1`, `content={"event":6,"eventValue":"0"}`：含义未确认
 
 ## 4. 目标架构
@@ -373,6 +380,8 @@ V1 固定暴露以下实体：
   - `water_pump_mode`
 - `number`
   - `feed_pause_time`
+- `button`
+  - `feed_now`
 
 命名规则：
 
@@ -389,7 +398,7 @@ V1 固定暴露以下实体：
 - buzzer
 - 滤芯状态与寿命
 - TDS 报警与系数配置
-- 定时喂食
+- 定时喂食计划管理
 - 附件定时规则
 
 原因：
@@ -497,7 +506,7 @@ gateway 必须保留：
 - child lock / buzzer / no disturb
 - 滤芯寿命
 - TDS 相关高级配置
-- 喂食计划与附件计划
+- 定时喂食计划与附件计划
 
 ## 11. 验收标准
 
@@ -521,5 +530,5 @@ gateway 必须保留：
 
 - `lightMode` / `lightBrightness` / `lightSpeed` 的完整写路径设计
 - `event=6` 的实际含义
-- 定时喂食与附件定时是否走 MQTT 之外的云端 HTTP 路径
+- 定时喂食计划与附件定时是否走 MQTT 之外的云端 HTTP 路径
 - 是否在后续版本把 `light` 从 `switch` 升级为 `light` 平台

@@ -18,6 +18,7 @@ DEFAULT_NAME = "Dangbei Fish Tank"
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.SWITCH,
     Platform.SELECT,
     Platform.NUMBER,

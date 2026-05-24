@@ -4,7 +4,7 @@ import asyncio
 import json
 
 from dangbei_tank_gateway.config import GatewayConfig
-from dangbei_tank_gateway.protocol import build_command_payload, parse_event, parse_reply
+from dangbei_tank_gateway.protocol import build_command_payload, command_topic, parse_event, parse_reply
 from dangbei_tank_gateway.service import GatewayService, IncomingMessage
 from dangbei_tank_gateway.state import GatewayState
 
@@ -14,6 +14,77 @@ def test_build_command_payload_uses_vendor_shape() -> None:
     assert payload["msgId"] == "123"
     action = json.loads(payload["content"]["action"])
     assert action == {"serviceName": "setProperty", "items": {"lightSwitch": 1}}
+
+
+def test_send_command_supports_feed_service_name() -> None:
+    async def _run() -> None:
+        service = GatewayService(
+            GatewayConfig(
+                client_id="abc",
+                username="abc",
+                password="secret",
+                group="grp",
+                mac="00:11:22:33:44:55",
+                sn="sn",
+                rom_ver_code="1",
+                local_mqtt_host="127.0.0.1",
+                local_mqtt_port=8883,
+                local_mqtt_ca_cert=None,
+                local_mqtt_insecure=True,
+                cloud_mqtt_host="127.0.0.1",
+                cloud_mqtt_port=8883,
+                cloud_mqtt_insecure=True,
+                api_host="127.0.0.1",
+                api_port=8787,
+                api_token="token",
+                info_interval_seconds=45,
+                snapshot_interval_seconds=90,
+                command_timeout_seconds=10.0,
+                post_command_refresh_delay_seconds=1.0,
+                snapshot_throttle_seconds=1.0,
+                log_path="/tmp/dangbei-test.jsonl",
+            )
+        )
+        published: list[tuple[str, str, int, bool]] = []
+
+        def fake_publish(topic: str, payload: str, qos: int, retain: bool) -> None:
+            published.append((topic, payload, qos, retain))
+
+        service.local.publish = fake_publish  # type: ignore[method-assign]
+
+        result = await service.send_command(
+            "abc",
+            service_name="feed",
+            items={"num": 1},
+            request_id="button_feed_now",
+        )
+
+        snapshot = await service.state.snapshot()
+        pending = snapshot["pending"][result["msg_id"]]
+        assert pending["service_name"] == "feed"
+        assert pending["items"] == {"num": 1}
+        assert pending["request_id"] == "button_feed_now"
+        assert snapshot["properties"] == {}
+
+        assert published == [
+            (
+                command_topic("abc"),
+                json.dumps(
+                    {
+                        "content": {
+                            "action": "{\"serviceName\":\"feed\",\"items\":{\"num\":1}}"
+                        },
+                        "msgId": result["msg_id"],
+                        "type": "cmd",
+                    },
+                    separators=(",", ":"),
+                ),
+                1,
+                False,
+            )
+        ]
+
+    asyncio.run(_run())
 
 
 def test_parse_reply_extracts_snapshot() -> None:
@@ -188,7 +259,7 @@ def test_cloud_message_marks_cloud_connected_and_config_identity_is_present() ->
     asyncio.run(_run())
 
 
-def test_cloud_set_property_message_triggers_refresh() -> None:
+def test_cloud_feed_message_triggers_refresh() -> None:
     async def _run() -> None:
         service = GatewayService(
             GatewayConfig(
@@ -232,8 +303,8 @@ def test_cloud_set_property_message_triggers_refresh() -> None:
                         "content": {
                             "action": json.dumps(
                                 {
-                                    "serviceName": "setProperty",
-                                    "items": {"lightSwitch": 1},
+                                    "serviceName": "feed",
+                                    "items": {"num": 1},
                                 }
                             )
                         },
