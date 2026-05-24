@@ -167,6 +167,16 @@ V1 中可直接落地的写路径分两类：
 - `peripheralPowerSwitch_1`
 - `peripheralPowerSwitch_2`
 
+已通过真实云端下行捕获、但当前 V1 暂不在 HA 中实现颜色映射的自定义灯效写法：
+
+- `{"lightMode":0,"customLightBrightness":60,"customLightColor":"255,247,247"}`
+
+补充说明：
+
+- 自定义灯效仍走普通 `cmd/device/down/<client_id>` + `serviceName=setProperty`
+- 当前未观测到自定义灯效依赖 `config/*` 专用 topic
+- `customLightColor` 字段已纳入网关状态模型与 diagnostics 范围，后续再映射到 HA 颜色语义
+
 已确认的独立动作命令：
 
 - `feed`，负载为 `{"serviceName":"feed","items":{"num":1}}`
@@ -414,6 +424,7 @@ V1 固定暴露以下实体：
 
 - child lock
 - buzzer
+- custom light color / 自定义灯效颜色面板
 - 滤芯状态与寿命
 - TDS 报警与系数配置
 - 定时喂食计划管理

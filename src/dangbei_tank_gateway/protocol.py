@@ -7,6 +7,8 @@ import json
 import time
 from typing import Any
 
+# `customLightColor` is protocol-confirmed and appears in mode-0 writes,
+# but V1 intentionally does not map it to a Home Assistant color model.
 KNOWN_EVENT_KEYS = {
     "buzzerSwitch",
     "childLockSwitch",
