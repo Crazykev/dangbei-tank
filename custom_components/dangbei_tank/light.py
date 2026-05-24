@@ -16,9 +16,19 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .entity import DangbeiTankEntity
 
-LIGHT_EFFECTS = [f"Mode {mode}" for mode in range(10)]
-LIGHT_EFFECT_TO_MODE = {effect: mode for mode, effect in enumerate(LIGHT_EFFECTS)}
-LIGHT_MODE_TO_EFFECT = {mode: effect for effect, mode in LIGHT_EFFECT_TO_MODE.items()}
+LIGHT_MODE_TO_EFFECT = {
+    0: "自定义",
+    1: "南美风",
+    2: "溪流风",
+    3: "夏日",
+    4: "月夜",
+    5: "珊瑚生长",
+    6: "地球自转",
+    7: "彩虹",
+    8: "光合作用",
+}
+LIGHT_EFFECTS = list(LIGHT_MODE_TO_EFFECT.values())
+LIGHT_EFFECT_TO_MODE = {effect: mode for mode, effect in LIGHT_MODE_TO_EFFECT.items()}
 
 
 def _percent_to_brightness(percent: Any) -> int | None:
@@ -62,7 +72,7 @@ class DangbeiAquariumLight(DangbeiTankEntity, LightEntity):
     def effect(self) -> str | None:
         value = self._properties().get("lightMode")
         if isinstance(value, int):
-            return LIGHT_MODE_TO_EFFECT.get(value)
+            return LIGHT_MODE_TO_EFFECT.get(value, f"Mode {value}")
         return None
 
     @property
