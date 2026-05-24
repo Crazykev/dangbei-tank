@@ -4,7 +4,14 @@ import asyncio
 import json
 
 from dangbei_tank_gateway.config import GatewayConfig
-from dangbei_tank_gateway.protocol import build_command_payload, command_topic, parse_event, parse_reply
+from dangbei_tank_gateway.protocol import (
+    build_command_payload,
+    build_property_event_payload,
+    command_topic,
+    event_topic,
+    parse_event,
+    parse_reply,
+)
 from dangbei_tank_gateway.service import GatewayService, IncomingMessage
 from dangbei_tank_gateway.state import GatewayState
 
@@ -116,6 +123,22 @@ def test_parse_event_merges_known_property_updates() -> None:
     parsed = parse_event(json.dumps({"lightSwitch": 1, "waterPump": 2}))
     assert parsed is not None
     assert parsed.updates == {"lightSwitch": 1, "waterPump": 2}
+    assert parsed.needs_refresh is False
+
+
+def test_parse_event_merges_wrapped_property_updates() -> None:
+    parsed = parse_event(
+        json.dumps(
+            {
+                "clientId": "abc",
+                "eventType": 0,
+                "msgId": "1",
+                "content": json.dumps({"waterPumpSwitch": 0, "lightSwitch": 1}),
+            }
+        )
+    )
+    assert parsed is not None
+    assert parsed.updates == {"waterPumpSwitch": 0, "lightSwitch": 1}
     assert parsed.needs_refresh is False
 
 
@@ -422,5 +445,92 @@ def test_pending_timeout_marks_dirty_and_requests_snapshot() -> None:
         assert snapshot["pending"] == {}
         assert snapshot["dirty"] == {"needs_refresh": True, "reason": "command_timeout"}
         assert snapshot_requests == ["command_timeout"]
+
+    asyncio.run(_run())
+
+
+def test_local_set_property_reply_publishes_synthetic_cloud_event() -> None:
+    async def _run() -> None:
+        service = GatewayService(
+            GatewayConfig(
+                client_id="abc",
+                username="abc",
+                password="secret",
+                group="grp",
+                mac="00:11:22:33:44:55",
+                sn="sn",
+                rom_ver_code="1",
+                local_mqtt_host="127.0.0.1",
+                local_mqtt_port=8883,
+                local_mqtt_ca_cert=None,
+                local_mqtt_insecure=True,
+                cloud_mqtt_host="127.0.0.1",
+                cloud_mqtt_port=8883,
+                cloud_mqtt_insecure=True,
+                api_host="127.0.0.1",
+                api_port=8787,
+                api_token="token",
+                info_interval_seconds=45,
+                snapshot_interval_seconds=90,
+                command_timeout_seconds=10.0,
+                post_command_refresh_delay_seconds=0.0,
+                snapshot_throttle_seconds=0.0,
+                log_path="/tmp/dangbei-test.jsonl",
+            )
+        )
+        cloud_publishes: list[tuple[str, str, int, bool]] = []
+        snapshot_requests: list[str] = []
+
+        def fake_cloud_publish(topic: str, payload: str, qos: int, retain: bool) -> None:
+            cloud_publishes.append((topic, payload, qos, retain))
+
+        async def fake_request_snapshot(reason: str) -> None:
+            snapshot_requests.append(reason)
+
+        service.cloud.publish = fake_cloud_publish  # type: ignore[method-assign]
+        service.request_snapshot = fake_request_snapshot  # type: ignore[method-assign]
+        service.cloud.is_connected = lambda: True  # type: ignore[method-assign]
+        await service.state.add_pending(
+            "local-msg-id",
+            {
+                "request_id": None,
+                "service_name": "setProperty",
+                "items": {"waterPumpSwitch": 1},
+                "created_at": 1.0,
+            },
+        )
+        parsed = parse_reply(
+            json.dumps(
+                {
+                    "clientId": "abc",
+                    "type": "cmd",
+                    "content": {"action": json.dumps({"serviceName": "setProperty", "items": {"waterPumpSwitch": 1}})},
+                    "msgId": "local-msg-id",
+                    "success": "true",
+                    "resultMsg": "",
+                }
+            )
+        )
+        assert parsed is not None
+
+        await service._handle_reply(parsed)
+
+        expected_payload = json.dumps(
+            build_property_event_payload("abc", {"waterPumpSwitch": 1}),
+            separators=(",", ":"),
+        )
+        assert len(cloud_publishes) == 1
+        published_topic, published_payload, published_qos, published_retain = cloud_publishes[0]
+        assert published_topic == event_topic("abc")
+        published_event = json.loads(published_payload)
+        expected_event = json.loads(expected_payload)
+        assert published_event["clientId"] == expected_event["clientId"]
+        assert published_event["eventType"] == expected_event["eventType"]
+        assert json.loads(published_event["content"]) == json.loads(expected_event["content"])
+        assert isinstance(published_event["msgId"], str)
+        assert published_event["msgId"]
+        assert published_qos == 1
+        assert published_retain is False
+        assert snapshot_requests == ["set_property_ack"]
 
     asyncio.run(_run())

@@ -15,6 +15,7 @@ from .protocol import (
     ParsedEvent,
     ParsedReply,
     build_command_payload,
+    build_property_event_payload,
     cloud_down_topics,
     command_topic,
     decode_action,
@@ -316,13 +317,15 @@ class GatewayService:
 
     async def _handle_reply(self, parsed: ParsedReply) -> None:
         await self.state.set_raw_field("last_local_reply", parsed.raw)
-        await self.state.pop_pending(parsed.msg_id)
+        pending = await self.state.pop_pending(parsed.msg_id)
         if parsed.service_name == "getAllProperties" and parsed.result is not None:
             await self.state.clear_pending_by_service("getAllProperties")
             await self.state.set_properties(parsed.result, reason="snapshot")
             return
 
         if parsed.service_name == "setProperty" and parsed.success:
+            if pending and pending.get("service_name") == "setProperty":
+                await self._publish_synthetic_property_event(pending.get("items", {}))
             await asyncio.sleep(self.config.post_command_refresh_delay_seconds)
             await self.request_snapshot("set_property_ack")
             return
@@ -381,6 +384,24 @@ class GatewayService:
                     topic=info_topic(self.config.client_id),
                     payload=self.config.info_payload,
                 )
+
+    async def _publish_synthetic_property_event(self, items: dict[str, Any]) -> None:
+        if not items or not self.cloud.is_connected():
+            return
+        payload = build_property_event_payload(self.config.client_id, items)
+        topic = event_topic(self.config.client_id)
+        self.cloud.publish(
+            topic,
+            json.dumps(payload, separators=(",", ":")),
+            qos=1,
+            retain=False,
+        )
+        await self.state.log_record(
+            self.config.log_path,
+            "cloud_publish_synthetic_event",
+            topic=topic,
+            payload=payload,
+        )
 
     async def _pending_timeout_watchdog(self) -> None:
         while not self._stop.is_set():

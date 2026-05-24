@@ -140,6 +140,21 @@ def build_command_payload(
     }
 
 
+def build_property_event_payload(
+    client_id: str,
+    updates: dict[str, Any],
+    *,
+    msg_id: str | None = None,
+) -> dict[str, Any]:
+    """Build an upstream property-change event envelope."""
+    return {
+        "clientId": client_id,
+        "eventType": 0,
+        "msgId": msg_id or new_msg_id(),
+        "content": json.dumps(updates, separators=(",", ":")),
+    }
+
+
 def parse_reply(payload: str) -> ParsedReply | None:
     """Parse one reply payload from the device."""
     data = decode_json_payload(payload)
@@ -179,9 +194,15 @@ def parse_event(payload: str) -> ParsedEvent | None:
         if key in KNOWN_EVENT_KEYS:
             updates[key] = value
 
+    wrapped_content = decode_action(data.get("content"))
+    if data.get("eventType") == 0 and isinstance(wrapped_content, dict):
+        for key, value in wrapped_content.items():
+            if key in KNOWN_EVENT_KEYS:
+                updates[key] = value
+
     needs_refresh = not updates
     if "content" in data and "eventType" in data:
-        needs_refresh = True
+        needs_refresh = not updates
 
     return ParsedEvent(
         updates=updates,
