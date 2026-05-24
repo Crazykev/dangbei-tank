@@ -2,9 +2,9 @@
 
 `dangbei-tank` is the source repository for the Dangbei/Mijia fish tank local-control solution.
 
-Current status: design phase only. This repository does not yet contain the runnable gateway or Home Assistant integration.
+Current status: gateway, Unraid deployment assets, and the Home Assistant custom integration are implemented in this repository.
 
-The implementation target is:
+The current delivery shape is:
 
 - Unraid hosts the local MQTT broker and fish-tank gateway
 - Home Assistant installs `dangbei_tank` through HACS

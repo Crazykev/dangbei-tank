@@ -1,0 +1,45 @@
+services:
+  broker:
+    image: eclipse-mosquitto:2
+    container_name: dangbei-tank-broker
+    restart: unless-stopped
+    ports:
+      - "8883:8883"
+    volumes:
+      - /mnt/user/appdata/dangbei-tank/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - /mnt/user/appdata/dangbei-tank/mosquitto/certs:/mosquitto/config/certs:ro
+      - /mnt/user/appdata/dangbei-tank/mosquitto/data:/mosquitto/data
+
+  gateway:
+    image: 192.168.199.9:5000/dangbei-tank-gateway:${GATEWAY_TAG}
+    container_name: dangbei-tank-gateway
+    restart: unless-stopped
+    depends_on:
+      - broker
+    ports:
+      - "8787:8787"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8787
+      API_TOKEN: ${API_TOKEN}
+      CLOUD_MQTT_HOST: ${CLOUD_MQTT_HOST}
+      CLOUD_MQTT_PORT: ${CLOUD_MQTT_PORT}
+      DANGBEI_CLIENT_ID: ${DANGBEI_CLIENT_ID}
+      DANGBEI_GROUP: ${DANGBEI_GROUP}
+      DANGBEI_MAC: ${DANGBEI_MAC}
+      DANGBEI_PASSWORD: ${DANGBEI_PASSWORD}
+      DANGBEI_ROM_VER_CODE: ${DANGBEI_ROM_VER_CODE}
+      DANGBEI_SN: ${DANGBEI_SN}
+      DANGBEI_USERNAME: ${DANGBEI_USERNAME}
+      INFO_INTERVAL_SECONDS: 45
+      LOCAL_MQTT_CA_CERT: /app/certs/server.crt
+      LOCAL_MQTT_HOST: ${LOCAL_MQTT_HOST:-broker}
+      LOCAL_MQTT_INSECURE: "true"
+      LOCAL_MQTT_PORT: ${LOCAL_MQTT_PORT:-8883}
+      LOG_PATH: /data/gateway.jsonl
+      POST_COMMAND_REFRESH_DELAY_SECONDS: 1.0
+      SNAPSHOT_INTERVAL_SECONDS: 90
+      SNAPSHOT_THROTTLE_SECONDS: 1.0
+    volumes:
+      - /mnt/user/appdata/dangbei-tank/mosquitto/certs:/app/certs:ro
+      - /mnt/user/appdata/dangbei-tank/gateway:/data

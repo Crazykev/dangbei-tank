@@ -140,6 +140,7 @@
 
 V1 只以已实测成功的 `setProperty` 写入为依据：
 
+- `powerSwitch`
 - `lightSwitch`
 - `waterPump`
 - `feedingProtectionSwitch`
@@ -363,6 +364,7 @@ V1 固定暴露以下实体：
   - `cloud_connected`
   - `device_connected`
 - `switch`
+  - `power`
   - `light`
   - `feeding_protection`
   - `accessory_1`
@@ -382,7 +384,6 @@ V1 固定暴露以下实体：
 
 以下能力即使已观察到字段，也不进入 V1：
 
-- 总电源 `powerSwitch`
 - 灯效/流光高级模式
 - child lock
 - buzzer
@@ -447,24 +448,9 @@ V1 固定暴露以下实体：
 - `/root/iot-lab/fish-tank/.iot-local-mqtt/certs/server.crt`
 - `/root/iot-lab/fish-tank/.iot-local-mqtt/certs/server.key`
 
-## 9. 迁移与切换方案
+## 9. 诊断、可观测性与故障处理
 
-前置条件：
-
-- 外部 DNS 已由你手工配置到 Unraid 地址
-
-切换步骤固定为：
-
-1. 在 Unraid 部署 broker 与 gateway
-2. 验证鱼缸连入 Unraid broker
-3. 验证 gateway 能看到设备并成功拉取 `getAllProperties`
-4. 在 Home Assistant 通过 HACS 安装 `dangbei_tank`
-5. 创建新的 config entry
-6. 在新的 `dangbei_tank` 设备模型下开始使用实体和服务
-
-## 10. 诊断、可观测性与故障处理
-
-### 10.1 诊断能力
+### 9.1 诊断能力
 
 gateway 必须保留：
 
@@ -481,7 +467,7 @@ gateway 必须保留：
 - MQTT password
 - 任何可能复用的云端凭据
 
-### 10.2 预期故障行为
+### 9.2 预期故障行为
 
 - HA 重启：
   - gateway 与 App 不应受影响
@@ -496,25 +482,24 @@ gateway 必须保留：
   - 鱼缸断开本地入口
   - HA 与 App 共存同时失败
 
-## 11. V1 范围与后续扩展
+## 10. V1 范围与后续扩展
 
-### 11.1 V1 范围
+### 10.1 V1 范围
 
 - broker + gateway + HACS 集成的完整闭环
 - 已知字段的稳定读写
 - raw diagnostics
 - 官方 App 共存
 
-### 11.2 后续扩展
+### 10.2 后续扩展
 
 - 灯效模式与亮度
-- 总电源控制
 - child lock / buzzer / no disturb
 - 滤芯寿命
 - TDS 相关高级配置
 - 喂食计划与附件计划
 
-## 12. 验收标准
+## 11. 验收标准
 
 设计验收通过的标准：
 
@@ -534,7 +519,6 @@ gateway 必须保留：
 
 ## 13. 待确认 / 暂不处理项
 
-- `powerSwitch` 是否适合进入后续版本
 - `lightMode` / `lightBrightness` / `lightSpeed` 的完整写路径设计
 - `event=6` 的实际含义
 - 定时喂食与附件定时是否走 MQTT 之外的云端 HTTP 路径

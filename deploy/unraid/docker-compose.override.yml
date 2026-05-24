@@ -1,0 +1,14 @@
+services:
+  broker:
+    labels:
+      net.unraid.docker.managed: "composeman"
+      net.unraid.docker.icon: ""
+      net.unraid.docker.webui: ""
+      net.unraid.docker.shell: ""
+
+  gateway:
+    labels:
+      net.unraid.docker.managed: "composeman"
+      net.unraid.docker.icon: ""
+      net.unraid.docker.webui: "http://[IP]:[PORT:8787]/healthz"
+      net.unraid.docker.shell: ""

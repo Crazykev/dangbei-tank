@@ -1,0 +1,7 @@
+{
+  "name": "Dangbei Tank",
+  "render_readme": true,
+  "country": "CN",
+  "domains": ["dangbei_tank"],
+  "homeassistant": "2025.12.0"
+}

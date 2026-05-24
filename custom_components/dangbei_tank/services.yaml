@@ -1,0 +1,38 @@
+refresh_state:
+  name: Refresh state
+  description: Request a fresh getAllProperties snapshot from the gateway.
+  fields:
+    entry_id:
+      required: false
+      selector:
+        text:
+
+send_raw_command:
+  name: Send raw command
+  description: Publish a raw MQTT topic and payload through the gateway.
+  fields:
+    entry_id:
+      required: true
+      selector:
+        text:
+    topic:
+      required: true
+      selector:
+        text:
+    payload:
+      required: true
+      selector:
+        text:
+    request_id:
+      required: false
+      selector:
+        text:
+
+dump_last_raw_payloads:
+  name: Dump last raw payloads
+  description: Return the latest raw cloud downlink, local reply, local event, and snapshot.
+  fields:
+    entry_id:
+      required: true
+      selector:
+        text:

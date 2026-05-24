@@ -1,0 +1,14 @@
+{
+  "domain": "dangbei_tank",
+  "name": "Dangbei Tank",
+  "codeowners": ["@Crazykev"],
+  "config_flow": true,
+  "dependencies": ["network"],
+  "documentation": "https://github.com/Crazykev/dangbei-tank",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/Crazykev/dangbei-tank/issues",
+  "loggers": ["custom_components.dangbei_tank"],
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -1,0 +1,29 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to gateway",
+        "description": "Enter the Dangbei gateway address and API token.",
+        "data": {
+          "gateway_base_url": "Gateway base URL",
+          "api_token": "API token"
+        }
+      },
+      "device": {
+        "title": "Select device",
+        "description": "Choose the fish tank exposed by the gateway.",
+        "data": {
+          "client_id": "Client ID",
+          "display_name": "Display name",
+          "area_id": "Area"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the gateway."
+    },
+    "abort": {
+      "reconfigure_successful": "Reconfiguration completed."
+    }
+  }
+}
