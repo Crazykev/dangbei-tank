@@ -17,7 +17,7 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities: AddCon
 class DangbeiFeedNowButton(DangbeiTankEntity, ButtonEntity):
     """Trigger one immediate feeding action."""
 
-    _attr_icon = "mdi:fish-food"
+    _attr_icon = "mdi:shaker"
 
     def __init__(self, coordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "feed_now", "Feed Now")
